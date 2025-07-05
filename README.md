@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/banner.svg" alt="Lingual" width="500px">
+  <img src=".github/banner.svg" alt="Lingual" width="1000px">
   <br>
   <p><strong>A powerful CLI tool for transpiling custom languages to multiple programming languages</strong></p>
 </div>
@@ -147,13 +147,6 @@ macro createGetter(fieldName, fieldType) {
 createGetter(name, string);
 createGetter(age, number);
 ```
-
-## 📁 File Extensions
-
-- Source files: `.lingual`
-- Generated C# files: `.cs`
-- Generated JavaScript files: `.js`
-- Generated TypeScript files: `.ts`
 
 ## 🏗️ Project Structure
 
@@ -346,6 +339,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-  <p>Made with ❤️ by the Lingual community</p>
+  <p>Made with ❤️ by <a href="https://vantio.app/">Vantio</a></p>
   <p>If this project helps you, please give it a ⭐️</p>
 </div> 
