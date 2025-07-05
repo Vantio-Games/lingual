@@ -1,3 +1,0 @@
-function test(): void {
-    let x: number = 1;
-} 

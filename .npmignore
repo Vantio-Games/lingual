@@ -1,0 +1,29 @@
+# Source files
+src/
+examples/
+
+# Development files
+.github/
+.vscode/
+*.log
+.DS_Store
+
+# Build artifacts (except dist)
+*.tsbuildinfo
+
+# Test files
+coverage/
+.nyc_output/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db 
