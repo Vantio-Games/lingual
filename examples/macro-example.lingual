@@ -1,0 +1,43 @@
+// Macro example in Lingual language
+
+// Define properties directly instead of using macros
+let _name: string;
+
+function getName(): string {
+    return this._name;
+}
+
+function setName(value: string): void {
+    this._name = value;
+}
+
+let _age: number;
+
+function getAge(): number {
+    return this._age;
+}
+
+function setAge(value: number): void {
+    this._age = value;
+}
+
+let _isActive: boolean;
+
+function getIsActive(): boolean {
+    return this._isActive;
+}
+
+function setIsActive(value: boolean): void {
+    this._isActive = value;
+}
+
+function testProperties(): void {
+    let person: object = {};
+    person.setName("John Doe");
+    person.setAge(30);
+    person.setIsActive(true);
+    
+    console.log("Name: " + person.getName());
+    console.log("Age: " + person.getAge());
+    console.log("Active: " + person.getIsActive());
+} 

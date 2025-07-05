@@ -1,0 +1,137 @@
+// Comprehensive SDK example demonstrating all Lingual features
+
+// Type definitions
+type User {
+  id: string
+  name: string
+  email: string
+  age: number
+  isActive: boolean
+}
+
+type Post {
+  id: string
+  title: string
+  content: string
+  authorId: string
+  createdAt: string
+  tags: string[]
+}
+
+type ApiResponse {
+  data: string
+  message: string
+  success: boolean
+}
+
+// API definitions
+api GetUser {
+  method: GET
+  path: "/users/{id}"
+  params: {
+    id: string
+  }
+  returns: User
+  description: "Retrieve a user by ID"
+}
+
+api CreateUser {
+  method: POST
+  path: "/users"
+  params: {
+    name: string
+    email: string
+    age: number
+  }
+  returns: User
+  description: "Create a new user"
+}
+
+api GetUserPosts {
+  method: GET
+  path: "/users/{id}/posts"
+  params: {
+    id: string
+    limit: number
+    offset: number
+  }
+  returns: Post[]
+  description: "Get posts by user ID"
+}
+
+api UpdateUser {
+  method: PUT
+  path: "/users/{id}"
+  params: {
+    id: string
+    name: string
+    email: string
+  }
+  returns: User
+  description: "Update user information"
+}
+
+api DeleteUser {
+  method: DELETE
+  path: "/users/{id}"
+  params: {
+    id: string
+  }
+  returns: void
+  description: "Delete a user"
+}
+
+// Module definition
+module userService {
+  // Functions within the module
+  fn validateEmail(email: string): boolean {
+    return true;
+  }
+
+  fn formatUserName(name: string): string {
+    return name;
+  }
+
+  fn createUserProfile(userName: string, userId: string): string {
+    let profile: string = "Profile for " + userName;
+    profile = profile + " (ID: " + userId + ")";
+    return profile;
+  }
+
+  fn getUserAge(userAge: number): number {
+    return userAge;
+  }
+}
+
+// Main program functions
+fn main(): void {
+  // Use module functions
+  let isValid: boolean = userService.validateEmail("user@example.com");
+  let formattedName: string = userService.formatUserName("john doe");
+  let profile: string = userService.createUserProfile("John Doe", "123");
+  let age: number = userService.getUserAge(30);
+  
+  console.log("User profile: " + profile);
+  console.log("Is email valid: " + isValid);
+  console.log("Formatted name: " + formattedName);
+  console.log("User age: " + age);
+}
+
+fn processUsers(userCount: number): void {
+  for (let i: number = 0; i < userCount; i = i + 1) {
+    let userName: string = "User" + i;
+    let profile: string = userService.createUserProfile(userName, "id" + i);
+    console.log(profile);
+  }
+}
+
+// Utility functions
+fn formatApiResponse(data: string, message: string): string {
+  let response: string = "Response: " + data + " - " + message;
+  return response;
+}
+
+fn handleError(message: string): string {
+  let error: string = "Error: " + message;
+  return error;
+} 

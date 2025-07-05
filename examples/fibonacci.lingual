@@ -1,0 +1,20 @@
+// Fibonacci example in Lingual language
+
+function fibonacci(n: number): number {
+    if (n <= 1) {
+        return n;
+    } else {
+        return fibonacci(n - 1) + fibonacci(n - 2);
+    }
+}
+
+function main(): void {
+    let result: number = fibonacci(10);
+    console.log("Fibonacci(10) = " + result);
+    
+    let sum: number = 0;
+    for (let i: number = 0; i < 10; i = i + 1) {
+        sum = sum + fibonacci(i);
+    }
+    console.log("Sum of first 10 Fibonacci numbers: " + sum);
+} 

@@ -1,0 +1,11 @@
+// Calculator example in Lingual language
+
+function add(a: number, b: number): number {
+    return a + b;
+}
+
+function main(): void {
+    let x: number = 10;
+    let y: number = 5;
+    let result: number = add(x, y);
+} 
