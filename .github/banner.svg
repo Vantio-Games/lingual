@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 150" xmlns:bx="https://boxy-svg.com">
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="300" viewBox="0 0 500 150" xmlns:bx="https://boxy-svg.com">
   <defs>
     <radialGradient gradientUnits="userSpaceOnUse" cx="250" cy="75" r="250" id="gradient-0" spreadMethod="pad">
       <stop offset="0" style="stop-color: rgb(85, 95, 218);"></stop>
