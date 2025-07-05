@@ -1,6 +1,8 @@
 import { LingualParser } from '../parser/grammar.js';
 import { tokenize } from '../lexer/tokens.js';
 import { CSharpTranspiler } from '../transpilers/csharp.js';
+import { JavaScriptTranspiler } from '../transpilers/javascript.js';
+import { TypeScriptTranspiler } from '../transpilers/typescript.js';
 import { MacroInterpreter } from '../macros/interpreter.js';
 import { FileHelpers } from '../utils/file-helpers.js';
 import { logger, LogLevel } from '../utils/logger.js';
@@ -27,12 +29,16 @@ export interface BuildResult {
 
 export class BuildPipeline {
   private parser: LingualParser;
-  private transpiler: CSharpTranspiler;
+  private csharpTranspiler: CSharpTranspiler;
+  private javascriptTranspiler: JavaScriptTranspiler;
+  private typescriptTranspiler: TypeScriptTranspiler;
   private context: CompilerContext;
 
   constructor(options: CompilerOptions) {
     this.parser = new LingualParser();
-    this.transpiler = new CSharpTranspiler();
+    this.csharpTranspiler = new CSharpTranspiler();
+    this.javascriptTranspiler = new JavaScriptTranspiler();
+    this.typescriptTranspiler = new TypeScriptTranspiler();
     this.context = {
       options,
       macros: new Map(),
@@ -96,7 +102,13 @@ export class BuildPipeline {
       let transpiledCode: string;
       switch (options.target || 'csharp') {
         case 'csharp':
-          transpiledCode = this.transpiler.transpile(processedAst);
+          transpiledCode = this.csharpTranspiler.transpile(processedAst);
+          break;
+        case 'javascript':
+          transpiledCode = this.javascriptTranspiler.transpile(processedAst);
+          break;
+        case 'typescript':
+          transpiledCode = this.typescriptTranspiler.transpile(processedAst);
           break;
         default:
           throw new Error(`Unsupported target language: ${options.target}`);
@@ -168,6 +180,20 @@ export class BuildPipeline {
       if (projectFile) {
         outputFiles.push(projectFile);
       }
+    } else if (target === 'javascript') {
+      const packageFile = await this.generateJavaScriptPackageFile(outputDir, inputName);
+      if (packageFile) {
+        outputFiles.push(packageFile);
+      }
+    } else if (target === 'typescript') {
+      const packageFile = await this.generateTypeScriptPackageFile(outputDir, inputName);
+      if (packageFile) {
+        outputFiles.push(packageFile);
+      }
+      const tsConfigFile = await this.generateTypeScriptConfigFile(outputDir);
+      if (tsConfigFile) {
+        outputFiles.push(tsConfigFile);
+      }
     }
 
     return outputFiles;
@@ -194,6 +220,100 @@ export class BuildPipeline {
 
     await FileHelpers.writeFile(projectFile, projectContent);
     return projectFile;
+  }
+
+  /**
+   * Generate JavaScript package.json file
+   */
+  private async generateJavaScriptPackageFile(outputDir: string, projectName: string): Promise<string | null> {
+    const packageFile = path.join(outputDir, 'package.json');
+    const packageContent = `{
+  "name": "${projectName}",
+  "version": "1.0.0",
+  "description": "Generated JavaScript code from Lingual",
+  "main": "${projectName}.js",
+  "type": "module",
+  "scripts": {
+    "start": "node ${projectName}.js",
+    "test": "echo \\"Error: no test specified\\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}`;
+
+    await FileHelpers.writeFile(packageFile, packageContent);
+    return packageFile;
+  }
+
+  /**
+   * Generate TypeScript package.json file
+   */
+  private async generateTypeScriptPackageFile(outputDir: string, projectName: string): Promise<string | null> {
+    const packageFile = path.join(outputDir, 'package.json');
+    const packageContent = `{
+  "name": "${projectName}",
+  "version": "1.0.0",
+  "description": "Generated TypeScript code from Lingual",
+  "main": "${projectName}.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ${projectName}.js",
+    "dev": "ts-node ${projectName}.ts",
+    "test": "echo \\"Error: no test specified\\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}`;
+
+    await FileHelpers.writeFile(packageFile, packageContent);
+    return packageFile;
+  }
+
+  /**
+   * Generate TypeScript tsconfig.json file
+   */
+  private async generateTypeScriptConfigFile(outputDir: string): Promise<string | null> {
+    const tsConfigFile = path.join(outputDir, 'tsconfig.json');
+    const tsConfigContent = `{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": [
+    "*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}`;
+
+    await FileHelpers.writeFile(tsConfigFile, tsConfigContent);
+    return tsConfigFile;
   }
 
   /**

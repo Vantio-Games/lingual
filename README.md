@@ -8,7 +8,7 @@ A CLI tool for transpiling a custom language to other programming languages, bui
 - **Function Declarations**: Support for typed function definitions
 - **Type System**: Basic type annotations and type checking
 - **Macro System**: Build-time macro expansion for code generation
-- **C# Transpiler**: Generate C# code from custom language syntax
+- **Multi-Language Transpilers**: Generate C#, JavaScript, and TypeScript code from custom language syntax
 - **CLI Interface**: Easy-to-use command line interface
 - **Logging**: Colored terminal output with different log levels
 
@@ -48,6 +48,8 @@ lingual build src/ -v
 
 # Build to a specific target language
 lingual build src/ -t csharp
+lingual build src/ -t javascript
+lingual build src/ -t typescript
 ```
 
 ### Language Syntax
@@ -104,6 +106,8 @@ createGetter(age, number);
 
 - Source files: `.lingual`
 - Generated C# files: `.cs`
+- Generated JavaScript files: `.js`
+- Generated TypeScript files: `.ts`
 
 ## Project Structure
 
@@ -113,7 +117,9 @@ src/
 ├── parser/          # Grammar and parsing
 ├── types/           # TypeScript type definitions
 ├── transpilers/     # Code generators
-│   └── csharp.ts   # C# transpiler
+│   ├── csharp.ts   # C# transpiler
+│   ├── javascript.ts # JavaScript transpiler
+│   └── typescript.ts # TypeScript transpiler
 ├── macros/          # Macro system
 ├── utils/           # Utilities (logging, file helpers)
 └── cli.ts          # CLI entry point
@@ -181,7 +187,9 @@ function main(): void {
 }
 ```
 
-### Generated C# Output
+### Generated Output Examples
+
+#### C# Output
 
 ```csharp
 using System;
@@ -213,6 +221,56 @@ namespace LingualGenerated
 }
 ```
 
+#### JavaScript Output
+
+```javascript
+// Generated JavaScript code from Lingual
+
+function fibonacci(n) {
+    if ((n <= 1)) {
+        return n;
+    } else {
+        return fibonacci((n - 1)) + fibonacci((n - 2));
+    }
+}
+
+function main() {
+    let result = fibonacci(10);
+    console.log("Fibonacci(10) = " + result);
+}
+
+// Main execution
+(async () => {
+    let result = fibonacci(10);
+    console.log("Fibonacci(10) = " + result);
+})();
+```
+
+#### TypeScript Output
+
+```typescript
+// Generated TypeScript code from Lingual
+
+function fibonacci(n: number): number {
+    if ((n <= 1)) {
+        return n;
+    } else {
+        return fibonacci((n - 1)) + fibonacci((n - 2));
+    }
+}
+
+function main(): void {
+    let result: number = fibonacci(10);
+    console.log("Fibonacci(10) = " + result);
+}
+
+// Main execution
+(async (): Promise<void> => {
+    let result: number = fibonacci(10);
+    console.log("Fibonacci(10) = " + result);
+})();
+```
+
 ## Contributing
 
 1. Fork the repository
@@ -228,7 +286,7 @@ MIT License - see LICENSE file for details.
 
 ## Roadmap
 
-- [ ] JavaScript/TypeScript transpiler
+- [x] JavaScript/TypeScript transpiler
 - [ ] More language targets (Python, Go, Rust)
 - [ ] Advanced type system
 - [ ] Module system

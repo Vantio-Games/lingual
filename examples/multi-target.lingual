@@ -1,0 +1,47 @@
+// Multi-target transpilation example
+// This file demonstrates various language features that work across all targets
+
+// Type definitions
+type Person {
+    name: string
+    age: number
+    isActive: boolean
+}
+
+// Function with parameters and return type
+function createPerson(name: string, age: number): Person {
+    let person: Person;
+    person.name = name;
+    person.age = age;
+    person.isActive = true;
+    return person;
+}
+
+// Function with conditional logic
+function getPersonStatus(person: Person): string {
+    if (person.age >= 18) {
+        return "adult";
+    } else {
+        return "minor";
+    }
+}
+
+// Function with mathematical operations
+function calculateAgeInDays(age: number): number {
+    return age * 365;
+}
+
+// Main function demonstrating various features
+function main(): void {
+    let person1: Person = createPerson("Alice", 25);
+    let person2: Person = createPerson("Bob", 16);
+    
+    let status1: string = getPersonStatus(person1);
+    let status2: string = getPersonStatus(person2);
+    
+    let days1: number = calculateAgeInDays(person1.age);
+    let days2: number = calculateAgeInDays(person2.age);
+    
+    console.log("Person 1: " + person1.name + " is " + status1 + " (" + days1 + " days old)");
+    console.log("Person 2: " + person2.name + " is " + status2 + " (" + days2 + " days old)");
+} 
