@@ -86,6 +86,8 @@ export class BuildPipeline {
         const cstToAst = this.convertCstToAst(ast);
         logger.debug('CST to AST conversion completed');
         ast = cstToAst;
+        // DEBUG: Print the AST after CST-to-AST conversion
+        console.log('DEBUG: AST after CST-to-AST conversion:', JSON.stringify(ast, null, 2));
       } catch (parseError) {
         logger.error('Parse error:', parseError);
         throw new Error(`Failed to parse source file: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
@@ -117,6 +119,8 @@ export class BuildPipeline {
 
       // Step 6: Write output files
       logger.debug('Step 6: Writing output files');
+      // DEBUG: Print the transpiled code before writing to file
+      console.log('DEBUG: Transpiled code to be written:', transpiledCode);
       const outputFiles = await this.writeOutputFiles(
         options.inputFile,
         transpiledCode,
@@ -366,6 +370,11 @@ export class BuildPipeline {
     // Check for variable declaration
     if (stmtCST.children.variableDeclaration) {
       return this.convertVariableDeclarationCST(stmtCST.children.variableDeclaration[0]);
+    }
+    
+    // Check for type definition
+    if (stmtCST.children.typeDefinition) {
+      return this.convertTypeDefinitionCST(stmtCST.children.typeDefinition[0]);
     }
     
     // Check for expression statement
@@ -883,39 +892,51 @@ export class BuildPipeline {
    */
   private convertPostfixExpressionCST(postfixCST: any): any {
     if (!postfixCST.children) return null;
-    
-    // Handle primary expression
+
+    // Start with the primary expression
+    let base = null;
     if (postfixCST.children.primaryExpression) {
-      const primaryCST = postfixCST.children.primaryExpression[0];
-      let base = this.convertPrimaryExpressionCST(primaryCST);
-      
-      // Handle call expressions (function calls) - check for LeftParen and RightParen
-      if (postfixCST.children.LeftParen && postfixCST.children.RightParen) {
-        // This is a function call
-        const callee = base;
-        const arguments_: any[] = [];
-        
-        // Extract arguments from argumentList
-        if (postfixCST.children.argumentList?.[0]?.children.expression) {
-          for (const argCST of postfixCST.children.argumentList[0].children.expression) {
-            const arg = this.convertExpressionCST(argCST);
-            if (arg) {
-              arguments_.push(arg);
-            }
+      base = this.convertPrimaryExpressionCST(postfixCST.children.primaryExpression[0]);
+    }
+
+    // Now handle the chain of postfix operations (member/call)
+    // The Chevrotain CST for MANY() will create arrays for each postfix operation
+    // We'll iterate through the children in order and apply each postfix operation to the base
+    const childKeys = Object.keys(postfixCST.children);
+    // Skip the first primaryExpression
+    let i = 1;
+    while (i < childKeys.length) {
+      const key = childKeys[i];
+      if (key === 'Dot') {
+        // Member expression
+        const propertyName = postfixCST.children.Identifier.shift().image;
+        base = {
+          type: 'MemberExpression',
+          object: base,
+          property: { type: 'Identifier', name: propertyName }
+        };
+        i += 2; // Skip Dot and Identifier
+      } else if (key === 'LeftParen') {
+        // Call expression
+        let args: any[] = [];
+        if (postfixCST.children.argumentList && postfixCST.children.argumentList.length > 0) {
+          // Always shift the first argumentList for each call
+          const argListCST = postfixCST.children.argumentList.shift();
+          if (argListCST.children && argListCST.children.expression) {
+            args = argListCST.children.expression.map((argCST: any) => this.convertExpressionCST(argCST));
           }
         }
-        
-        return {
+        base = {
           type: 'CallExpression',
-          callee,
-          arguments: arguments_
+          callee: base,
+          arguments: args
         };
+        i += 3; // Skip LeftParen, (optional argumentList), RightParen
+      } else {
+        i++;
       }
-      
-      return base;
     }
-    
-    return null;
+    return base;
   }
 
   /**
@@ -1024,6 +1045,74 @@ export class BuildPipeline {
       type: 'TypeAnnotation',
       typeName: { type: 'Identifier', name: typeName }
     };
+  }
+
+  /**
+   * Convert type definition CST to AST
+   */
+  private convertTypeDefinitionCST(typeCST: any): any {
+    if (!typeCST.children) return null;
+    
+    // Extract type name
+    const nameToken = typeCST.children.Identifier?.[0];
+    const name = nameToken?.image || 'unknown';
+    
+    // Extract fields
+    const fields = this.extractTypeFields(typeCST);
+    
+    return {
+      type: 'TypeDefinition',
+      name: { type: 'Identifier', name },
+      fields: fields || []
+    };
+  }
+
+  /**
+   * Extract type fields from type definition CST
+   */
+  private extractTypeFields(typeCST: any): any[] {
+    const fields: any[] = [];
+    
+    if (typeCST.children.typeField) {
+      for (const fieldCST of typeCST.children.typeField) {
+        const fieldName = fieldCST.children.Identifier?.[0]?.image;
+        const fieldType = this.extractFieldType(fieldCST);
+        const required = this.extractFieldRequired(fieldCST);
+        
+        if (fieldName) {
+          fields.push({
+            type: 'TypeField',
+            name: { type: 'Identifier', name: fieldName },
+            typeAnnotation: fieldType,
+            required: required
+          });
+        }
+      }
+    }
+    
+    return fields;
+  }
+
+  /**
+   * Extract field type from type field CST
+   */
+  private extractFieldType(fieldCST: any): any {
+    if (fieldCST.children.typeAnnotation) {
+      const typeCST = fieldCST.children.typeAnnotation[0];
+      return this.convertTypeAnnotationCST(typeCST);
+    }
+    return null;
+  }
+
+  /**
+   * Extract field required status from type field CST
+   */
+  private extractFieldRequired(fieldCST: any): boolean {
+    // Default to required unless explicitly marked as optional
+    if (fieldCST.children.Optional) {
+      return false;
+    }
+    return true;
   }
 
   /**

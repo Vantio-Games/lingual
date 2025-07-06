@@ -49,6 +49,30 @@ export class MacroRuntime {
       return text.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
     });
 
+    // @fetch(url) - performs HTTP fetch request
+    this.builtinMacros.set('fetch', async (url: string) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response;
+      } catch (error) {
+        logger.error(`Fetch error for URL ${url}:`, error);
+        throw error;
+      }
+    });
+
+    // @json(response) - parses JSON from fetch response
+    this.builtinMacros.set('json', async (response: Response) => {
+      try {
+        return await response.json();
+      } catch (error) {
+        logger.error('JSON parsing error:', error);
+        throw error;
+      }
+    });
+
     logger.debug('Registered built-in macros:', Array.from(this.builtinMacros.keys()));
   }
 
@@ -63,17 +87,21 @@ export class MacroRuntime {
   /**
    * Evaluate an inline macro call
    */
-  evaluateMacro(macroName: string, args: any[]): any {
+  async evaluateMacro(macroName: string, args: any[]): Promise<any> {
     // Check built-in macros first
     if (this.builtinMacros.has(macroName)) {
       const macro = this.builtinMacros.get(macroName)!;
-      return macro(...args);
+      const result = macro(...args);
+      // Handle both sync and async macros
+      return result instanceof Promise ? await result : result;
     }
 
     // Check custom macros
     if (this.customMacros.has(macroName)) {
       const macro = this.customMacros.get(macroName)!;
-      return macro(...args);
+      const result = macro(...args);
+      // Handle both sync and async macros
+      return result instanceof Promise ? await result : result;
     }
 
     throw new Error(`Undefined macro: ${macroName}`);
@@ -82,24 +110,42 @@ export class MacroRuntime {
   /**
    * Process inline macro calls in a string
    */
-  processInlineMacros(text: string): string {
+  async processInlineMacros(text: string): Promise<string> {
     // Match @macroName(arg1, arg2, ...) pattern
     const macroPattern = /@(\w+)\(([^)]*)\)/g;
     
-    return text.replace(macroPattern, (match, macroName, argsString) => {
-      try {
-        // Parse arguments
-        const args = this.parseMacroArguments(argsString);
-        
-        // Evaluate macro
-        const result = this.evaluateMacro(macroName, args);
-        
-        return String(result);
-      } catch (error) {
-        logger.warn(`Failed to evaluate macro ${macroName}:`, error);
-        return match; // Return original text if macro fails
-      }
+    const promises: Promise<{ match: string; replacement: string }>[] = [];
+    
+    text.replace(macroPattern, (match, macroName, argsString) => {
+      promises.push(
+        (async () => {
+          try {
+            // Parse arguments
+            const args = this.parseMacroArguments(argsString);
+            
+            // Evaluate macro
+            const result = await this.evaluateMacro(macroName, args);
+            
+            return { match, replacement: String(result) };
+          } catch (error) {
+            logger.warn(`Failed to evaluate macro ${macroName}:`, error);
+            return { match, replacement: match }; // Return original text if macro fails
+          }
+        })()
+      );
+      return match; // Keep original for now
     });
+    
+    // Wait for all macro evaluations to complete
+    const results = await Promise.all(promises);
+    
+    // Replace all matches with results
+    let processedText = text;
+    for (const { match, replacement } of results) {
+      processedText = processedText.replace(match, replacement);
+    }
+    
+    return processedText;
   }
 
   /**

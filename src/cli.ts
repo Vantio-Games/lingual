@@ -4,6 +4,8 @@ import { Command } from 'commander';
 import { LingualParser } from './parser/grammar.js';
 import { tokenize } from './lexer/tokens.js';
 import { CSharpTranspiler } from './transpilers/csharp.js';
+import { JavaScriptTranspiler } from './transpilers/javascript.js';
+import { TypeScriptTranspiler } from './transpilers/typescript.js';
 import { MacroInterpreter } from './macros/interpreter.js';
 import { MacroRuntime } from './macros/runtime.js';
 import { FileHelpers } from './utils/file-helpers.js';
@@ -120,6 +122,14 @@ async function processFile(sourceFile: string, context: CompilerContext, outputF
     case 'csharp':
       const csharpTranspiler = new CSharpTranspiler();
       transpiledCode = csharpTranspiler.transpile(processedProgram);
+      break;
+    case 'javascript':
+      const javascriptTranspiler = new JavaScriptTranspiler();
+      transpiledCode = javascriptTranspiler.transpile(processedProgram);
+      break;
+    case 'typescript':
+      const typescriptTranspiler = new TypeScriptTranspiler();
+      transpiledCode = typescriptTranspiler.transpile(processedProgram);
       break;
     default:
       context.errors.push({

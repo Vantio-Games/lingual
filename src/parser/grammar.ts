@@ -130,31 +130,29 @@ export class LingualParser extends CstParser {
   // Type Definition
   private typeDefinition = this.RULE('typeDefinition', () => {
     this.CONSUME(tokens.Type);
-    const name = this.CONSUME(tokens.Identifier);
-    
+    const typeName = this.CONSUME(tokens.Identifier);
     // Handle generic type parameters (e.g., ApiResponse<T>)
-    const genericParameters = this.OPTION(() => {
+    this.OPTION(() => {
       this.CONSUME(tokens.LessThan);
-      const firstParam = this.CONSUME1(tokens.Identifier);
-      const params = [firstParam];
-      this.MANY1(() => {
+      this.CONSUME1(tokens.Identifier);
+      this.MANY(() => {
         this.CONSUME(tokens.Comma);
-        const nextParam = this.CONSUME2(tokens.Identifier);
-        params.push(nextParam);
+        this.CONSUME2(tokens.Identifier);
       });
       this.CONSUME(tokens.GreaterThan);
-      return params.map(param => ({ type: 'Identifier', name: param.image }));
     });
-    
     this.CONSUME(tokens.LeftBrace);
-    this.MANY2(() => this.SUBRULE(this.typeField));
+    const fields: any[] = [];
+    this.MANY2(() => {
+      const field = this.SUBRULE(this.typeField);
+      fields.push(field);
+    });
     this.CONSUME(tokens.RightBrace);
     
     return {
       type: 'TypeDefinition',
-      name: { type: 'Identifier', name: name.image },
-      genericParameters: genericParameters || [],
-      fields: []
+      name: { type: 'Identifier', name: typeName.image },
+      fields
     } as any;
   });
 
@@ -270,7 +268,11 @@ export class LingualParser extends CstParser {
     });
     
     this.CONSUME(tokens.LeftBrace);
-    const body = this.MANY(() => this.SUBRULE(this.statement));
+    const body: any[] = [];
+    this.MANY(() => {
+      const statement = this.SUBRULE(this.statement);
+      body.push(statement);
+    });
     this.CONSUME(tokens.RightBrace);
     
     return {
@@ -323,11 +325,9 @@ export class LingualParser extends CstParser {
       { ALT: () => this.CONSUME(tokens.Array) }
     ]);
     
-    // Handle array syntax (e.g., string[]) or generic arguments (e.g., ApiResponse<T>)
+    // Only enter OPTION if next token is LessThan or LeftBracket
     const arrayOrGeneric = this.OPTION(() => {
-      // Check if it's angle brackets (generics) or square brackets (arrays)
       const nextToken = this.LA(1);
-      
       if (nextToken.tokenType === tokens.LessThan) {
         // It's a generic argument list with angle brackets
         this.CONSUME(tokens.LessThan);
@@ -344,8 +344,6 @@ export class LingualParser extends CstParser {
         // It's an array type with square brackets
         this.CONSUME(tokens.LeftBracket);
         const nextNextToken = this.LA(1);
-        
-        // If next token is RightBracket, it's an array type (e.g., string[])
         if (nextNextToken.tokenType === tokens.RightBracket) {
           this.CONSUME(tokens.RightBracket);
           return { type: 'array' };
@@ -362,7 +360,6 @@ export class LingualParser extends CstParser {
           return { type: 'generic', arguments: args };
         }
       }
-      
       return null;
     });
     
@@ -402,7 +399,11 @@ export class LingualParser extends CstParser {
 
   // Variable declaration
   private variableDeclaration = this.RULE('variableDeclaration', () => {
-    this.CONSUME(tokens.Let);
+    this.OR([
+      { ALT: () => this.CONSUME(tokens.Const) },
+      { ALT: () => this.CONSUME(tokens.Let) },
+      { ALT: () => this.CONSUME(tokens.Var) }
+    ]);
     const name = this.CONSUME(tokens.Identifier);
     
     const declarationOptions = this.OPTION1(() => {
@@ -528,7 +529,11 @@ export class LingualParser extends CstParser {
     const parameters = this.OPTION(() => this.SUBRULE(this.parameterList));
     this.CONSUME(tokens.RightParen);
     this.CONSUME(tokens.LeftBrace);
-    const body = this.MANY(() => this.SUBRULE(this.statement));
+    const body: any[] = [];
+    this.MANY(() => {
+      const statement = this.SUBRULE(this.statement);
+      body.push(statement);
+    });
     this.CONSUME(tokens.RightBrace);
     this.CONSUME(tokens.End);
     
@@ -714,10 +719,25 @@ export class LingualParser extends CstParser {
 
   private primaryExpression = this.RULE('primaryExpression', () => {
     return this.OR([
+      { ALT: () => this.SUBRULE(this.macroCallExpression) },
       { ALT: () => this.SUBRULE(this.literal) },
       { ALT: () => this.SUBRULE(this.identifier) },
-      { ALT: () => this.SUBRULE(this.parenthesizedExpression) }
+      { ALT: () => this.SUBRULE(this.parenthesizedExpression) },
+      { ALT: () => this.SUBRULE(this.arrayLiteral) }
     ]);
+  });
+
+  private macroCallExpression = this.RULE('macroCallExpression', () => {
+    this.CONSUME(tokens.AtSymbol);
+    const macroName = this.CONSUME(tokens.Identifier);
+    this.CONSUME(tokens.LeftParen);
+    const args = this.OPTION(() => this.SUBRULE(this.argumentList));
+    this.CONSUME(tokens.RightParen);
+    return {
+      type: 'MacroCall',
+      name: { type: 'Identifier', name: macroName.image },
+      arguments: args || []
+    };
   });
 
   private literal = this.RULE('literal', () => {
@@ -741,6 +761,17 @@ export class LingualParser extends CstParser {
     const expression = this.SUBRULE(this.expression);
     this.CONSUME(tokens.RightParen);
     return expression;
+  });
+
+  private arrayLiteral = this.RULE('arrayLiteral', () => {
+    this.CONSUME(tokens.LeftBracket);
+    const elements = this.OPTION(() => this.SUBRULE(this.argumentList));
+    this.CONSUME(tokens.RightBracket);
+    
+    return {
+      type: 'ArrayLiteral',
+      elements: elements || []
+    };
   });
 
   private callExpression = (base: any) => {

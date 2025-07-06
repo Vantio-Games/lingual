@@ -3,7 +3,7 @@ import { BaseNode, Identifier, SourceLocation } from '../../types/index.js';
 export interface TypeField extends BaseNode {
   type: 'TypeField';
   name: Identifier;
-  typeAnnotation: string;
+  typeAnnotation: any; // TypeAnnotation object
   required: boolean;
   description?: string;
   defaultValue?: any;

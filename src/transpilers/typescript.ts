@@ -13,17 +13,21 @@ import {
   CallExpression,
   MemberExpression,
   Parameter,
-  TypeAnnotation
+  TypeAnnotation,
+  MacroCall
 } from '../types/index.js';
-import { ApiDefinition, TypeDefinition, ModuleDefinition } from '../language/features/index.js';
+import { ApiDefinition, TypeDefinition, ModuleDefinition, TypeField } from '../language/features/index.js';
+import { StandardLibraryTranspiler } from './standard-library.js';
 import { logger } from '../utils/logger.js';
 
 export class TypeScriptTranspiler {
   private indentLevel = 0;
   private indentSize = 2;
+  private stdLibTranspiler: StandardLibraryTranspiler;
 
   constructor() {
     this.indentLevel = 0;
+    this.stdLibTranspiler = new StandardLibraryTranspiler('typescript');
   }
 
   /**
@@ -31,12 +35,21 @@ export class TypeScriptTranspiler {
    */
   transpile(program: Program): string {
     logger.debug('Starting TypeScript transpilation');
+    // DEBUG: Print the program AST received by the transpiler
+    console.log('DEBUG: TypeScriptTranspiler received program:', JSON.stringify(program, null, 2));
     
     const lines: string[] = [];
     
     // Add module imports and setup
     lines.push('// Generated TypeScript code from Lingual');
     lines.push('');
+    
+    // Add standard library imports
+    const stdLibImports = this.stdLibTranspiler.getRequiredImports();
+    if (stdLibImports.length > 0) {
+      lines.push(...stdLibImports);
+      lines.push('');
+    }
     
     // Process all statements and organize by type
     const apis: ApiDefinition[] = [];
@@ -46,12 +59,15 @@ export class TypeScriptTranspiler {
     const variables: VariableDeclaration[] = [];
     const otherStatements: Statement[] = [];
 
+    logger.debug(`Processing ${program.body.length} statements`);
     for (const statement of program.body) {
+      logger.debug(`Processing statement type: ${statement.type}`);
       switch (statement.type) {
         case 'ApiDefinition':
           apis.push(statement as ApiDefinition);
           break;
         case 'TypeDefinition':
+          logger.debug(`Found TypeDefinition: ${(statement as TypeDefinition).name.name}`);
           types.push(statement as TypeDefinition);
           break;
         case 'ModuleDefinition':
@@ -64,14 +80,18 @@ export class TypeScriptTranspiler {
           variables.push(statement as VariableDeclaration);
           break;
         case 'MacroCall':
+          otherStatements.push(statement);
+          break;
         case 'MacroDefinition':
-          // Ignore macros in transpilation
+          // Ignore macro definitions in transpilation
           break;
         default:
           logger.warn(`Unknown statement type: ${(statement as any).type}`);
           otherStatements.push(statement);
       }
     }
+
+    logger.debug(`Found ${types.length} type definitions`);
 
     // Generate type definitions as interfaces/classes
     for (const type of types) {
@@ -151,6 +171,7 @@ export class TypeScriptTranspiler {
    * Transpile a type definition to TypeScript interface/class
    */
   private transpileTypeDefinition(type: TypeDefinition): string {
+    logger.debug(`Transpiling type definition: ${type.name.name} with ${type.fields?.length || 0} fields`);
     const lines: string[] = [];
     
     // Generate interface
@@ -159,7 +180,8 @@ export class TypeScriptTranspiler {
 
     if (type.fields && type.fields.length > 0) {
       for (const field of type.fields) {
-        const tsType = this.mapTypeToTypeScript((field as any).typeAnnotation);
+        logger.debug(`Processing field: ${field.name.name}`);
+        const tsType = this.mapTypeToTypeScript(field.typeAnnotation);
         const optional = field.required ? '' : '?';
         lines.push(this.indent() + `${field.name.name}${optional}: ${tsType};`);
       }
@@ -176,14 +198,14 @@ export class TypeScriptTranspiler {
     // Generate properties
     if (type.fields && type.fields.length > 0) {
       for (const field of type.fields) {
-        const tsType = this.mapTypeToTypeScript((field as any).typeAnnotation);
+        const tsType = this.mapTypeToTypeScript(field.typeAnnotation);
         const optional = field.required ? '' : '?';
         lines.push(this.indent() + `${field.name.name}${optional}: ${tsType};`);
       }
       lines.push('');
 
       // Generate constructor
-      const params = type.fields.map(field => `${field.name.name}: ${this.mapTypeToTypeScript((field as any).typeAnnotation)}`).join(', ');
+      const params = type.fields.map(field => `${field.name.name}: ${this.mapTypeToTypeScript(field.typeAnnotation)}`).join(', ');
       lines.push(this.indent() + `constructor(${params}) {`);
       this.indentLevel++;
       
@@ -267,46 +289,92 @@ export class TypeScriptTranspiler {
   private transpileFunctionDeclaration(func: FunctionDeclaration): string {
     const lines: string[] = [];
     
-    // Generate function signature with types
+    // Check if function contains HTTP operations
+    const hasHttpOps = this.hasHttpOperations(func.body);
+    const asyncKeyword = hasHttpOps ? 'async ' : '';
+    
+    const name = func.name.name;
     const params = func.parameters.map(param => {
       const paramName = param.name.name;
-      const paramType = param.typeAnnotation ? this.mapTypeToTypeScript(param.typeAnnotation) : 'any';
-      return `${paramName}: ${paramType}`;
+      const typeAnnotation = param.typeAnnotation ? `: ${this.mapTypeToTypeScript(param.typeAnnotation)}` : '';
+      return `${paramName}${typeAnnotation}`;
     }).join(', ');
     
-    const functionName = func.name.name;
-    const returnType = func.returnType ? this.mapTypeToTypeScript(func.returnType) : 'void';
+    const returnType = func.returnType ? `: ${this.mapTypeToTypeScript(func.returnType)}` : '';
     
-    lines.push(`function ${functionName}(${params}): ${returnType} {`);
+    lines.push(`${asyncKeyword}function ${name}(${params})${returnType} {`);
     this.indentLevel++;
-
-    // Generate function body
+    
+    // Transpile function body
     for (const statement of func.body) {
       const transpiled = this.transpileStatement(statement);
-      if (transpiled !== undefined) {
+      if (transpiled) {
         lines.push(this.indent() + transpiled);
       }
     }
-
+    
     this.indentLevel--;
     lines.push('}');
     
     return lines.join('\n');
   }
 
+  private hasHttpOperations(body: Statement[]): boolean {
+    for (const statement of body) {
+      if (statement.type === 'ExpressionStatement') {
+        const expr = (statement as ExpressionStatement).expression;
+        if (expr.type === 'MacroCall' || this.isStandardLibraryCall(expr)) {
+          return true;
+        }
+      } else if (statement.type === 'VariableDeclaration') {
+        const decl = statement as VariableDeclaration;
+        if (decl.initializer) {
+          if (decl.initializer.type === 'MacroCall' || this.isStandardLibraryCall(decl.initializer)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private isStandardLibraryCall(expr: Expression): boolean {
+    if (expr.type === 'CallExpression') {
+      const callExpr = expr as CallExpression;
+      const callee = callExpr.callee;
+      
+      if (callee.type === 'MemberExpression') {
+        const memberExpr = callee as MemberExpression;
+        const objectExpr = memberExpr.object;
+        const functionName = memberExpr.property.name;
+        
+        // Check if this is a static standard library function that requires async
+        if (objectExpr.type === 'Identifier') {
+          const objectName = this.transpileIdentifier(objectExpr as Identifier);
+          if (this.stdLibTranspiler.isAsyncFunction(objectName, functionName)) {
+            return true;
+          }
+        }
+        
+        // Check if this is an object method call that requires async
+        const objectStr = this.transpileExpression(objectExpr);
+        if (this.stdLibTranspiler.isAsyncObjectMethod(objectStr, functionName)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /**
    * Transpile a variable declaration
    */
   private transpileVariableDeclaration(decl: VariableDeclaration): string {
-    const varName = decl.name.name;
-    const varType = decl.typeAnnotation ? this.mapTypeToTypeScript(decl.typeAnnotation) : 'any';
+    const name = decl.name.name;
+    const typeAnnotation = decl.typeAnnotation ? `: ${this.mapTypeToTypeScript(decl.typeAnnotation)}` : '';
+    const initializer = decl.initializer ? ` = ${this.transpileExpression(decl.initializer)}` : '';
     
-    if (decl.initializer) {
-      const initializer = this.transpileExpression(decl.initializer);
-      return `let ${varName}: ${varType} = ${initializer};`;
-    } else {
-      return `let ${varName}: ${varType};`;
-    }
+    return `const ${name}${typeAnnotation}${initializer};`;
   }
 
   /**
@@ -322,9 +390,30 @@ export class TypeScriptTranspiler {
         return this.transpileIfStatement(statement as IfStatement);
       case 'VariableDeclaration':
         return this.transpileVariableDeclaration(statement as VariableDeclaration);
+      case 'MacroCall':
+        return this.transpileMacroCall(statement as MacroCall);
       default:
         logger.warn(`Unsupported statement type: ${statement.type}`);
         return undefined;
+    }
+  }
+
+  /**
+   * Transpile a macro call
+   */
+  private transpileMacroCall(macroCall: MacroCall): string {
+    const macroName = macroCall.name.name;
+    const args = macroCall.arguments.map(arg => this.transpileExpression(arg)).join(', ');
+    
+    // Handle specific macros with better language-specific implementations
+    switch (macroName) {
+      case 'fetch':
+        return `await fetch(${args})`;
+      case 'json':
+        return `await ${args}.json()`;
+      default:
+        // For other macros, just call them as functions
+        return `${macroName}(${args})`;
     }
   }
 
@@ -396,10 +485,19 @@ export class TypeScriptTranspiler {
         return this.transpileCallExpression(expr as CallExpression);
       case 'MemberExpression':
         return this.transpileMemberExpression(expr as MemberExpression);
+      case 'MacroCall':
+        return this.transpileMacroCall(expr as MacroCall);
       default:
         logger.warn(`Unsupported expression type: ${(expr as any).type}`);
         return 'undefined';
     }
+  }
+
+  private transpileMemberExpression(expr: MemberExpression): string {
+    const object = this.transpileExpression(expr.object);
+    const property = expr.property.name;
+    
+    return `${object}.${property}`;
   }
 
   /**
@@ -461,20 +559,13 @@ export class TypeScriptTranspiler {
    * Transpile a call expression
    */
   private transpileCallExpression(expr: CallExpression): string {
-    const callee = this.transpileExpression(expr.callee);
-    const args = expr.arguments.map(arg => this.transpileExpression(arg)).join(', ');
+    // Debug logging
+    console.log('DEBUG: transpileCallExpression called with:', JSON.stringify(expr, null, 2));
     
-    return `${callee}(${args})`;
-  }
-
-  /**
-   * Transpile a member expression
-   */
-  private transpileMemberExpression(expr: MemberExpression): string {
-    const object = this.transpileExpression(expr.object);
-    const property = expr.property.name;
-    
-    return `${object}.${property}`;
+    // Use the standard library transpiler for deep processing
+    const result = this.stdLibTranspiler.transpileCallExpression(expr, (expr) => this.transpileExpression(expr));
+    console.log('DEBUG: transpileCallExpression result:', result);
+    return result;
   }
 
   /**

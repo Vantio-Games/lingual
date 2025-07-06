@@ -1,7 +1,7 @@
 <div align="center">
   <img src=".github/banner.svg" alt="Lingual" width="1000px">
   <br>
-  <p><strong>A powerful CLI tool for transpiling custom languages to multiple programming languages</strong></p>
+  <p><strong>A powerful CLI tool for transpiling to multiple programming languages</strong></p>
 </div>
 
 <div align="center">

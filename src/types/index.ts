@@ -1,4 +1,5 @@
 // Core AST node types for the custom language
+import { TypeDefinition } from '../language/features/type.js';
 
 export interface Position {
   line: number;
@@ -94,16 +95,11 @@ export type Expression =
   | Literal 
   | BinaryExpression 
   | CallExpression 
-  | MemberExpression;
+  | MemberExpression
+  | MacroCall;
 
 export interface ApiDefinition extends BaseNode {
   type: 'ApiDefinition';
-  name: Identifier;
-  // ...other properties as needed
-}
-
-export interface TypeDefinition extends BaseNode {
-  type: 'TypeDefinition';
   name: Identifier;
   // ...other properties as needed
 }
@@ -113,6 +109,8 @@ export interface ModuleDefinition extends BaseNode {
   name: Identifier;
   // ...other properties as needed
 }
+
+export { TypeDefinition } from '../language/features/type.js';
 
 export type Statement = 
   | FunctionDeclaration 

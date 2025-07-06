@@ -11,6 +11,7 @@ export const Let = createToken({ name: 'Let', pattern: /let/ });
 export const Var = createToken({ name: 'Var', pattern: /var/ });
 export const Macro = createToken({ name: 'Macro', pattern: /macro/ });
 export const End = createToken({ name: 'End', pattern: /end/ });
+export const Const = createToken({ name: 'Const', pattern: /const/ });
 
 // High-level language constructs
 export const Api = createToken({ name: 'Api', pattern: /api/ });
@@ -113,6 +114,7 @@ export const allTokens = [
   If,
   Else,
   For,
+  Const,
   Let,
   Var,
   Macro,

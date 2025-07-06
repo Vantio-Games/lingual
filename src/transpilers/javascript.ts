@@ -13,7 +13,8 @@ import {
   CallExpression,
   MemberExpression,
   Parameter,
-  TypeAnnotation
+  TypeAnnotation,
+  MacroCall
 } from '../types/index.js';
 import { ApiDefinition, TypeDefinition, ModuleDefinition } from '../language/features/index.js';
 import { logger } from '../utils/logger.js';
@@ -64,8 +65,10 @@ export class JavaScriptTranspiler {
           variables.push(statement as VariableDeclaration);
           break;
         case 'MacroCall':
+          otherStatements.push(statement);
+          break;
         case 'MacroDefinition':
-          // Ignore macros in transpilation
+          // Ignore macro definitions in transpilation
           break;
         default:
           logger.warn(`Unknown statement type: ${(statement as any).type}`);
@@ -288,9 +291,30 @@ export class JavaScriptTranspiler {
         return this.transpileIfStatement(statement as IfStatement);
       case 'VariableDeclaration':
         return this.transpileVariableDeclaration(statement as VariableDeclaration);
+      case 'MacroCall':
+        return this.transpileMacroCall(statement as MacroCall);
       default:
         logger.warn(`Unsupported statement type: ${statement.type}`);
         return undefined;
+    }
+  }
+
+  /**
+   * Transpile a macro call
+   */
+  private transpileMacroCall(macroCall: MacroCall): string {
+    const macroName = macroCall.name.name;
+    const args = macroCall.arguments.map(arg => this.transpileExpression(arg)).join(', ');
+    
+    // Handle specific macros
+    switch (macroName) {
+      case 'fetch':
+        return `await fetch(${args})`;
+      case 'json':
+        return `await ${args}.json()`;
+      default:
+        // For other macros, just call them as functions
+        return `${macroName}(${args})`;
     }
   }
 
