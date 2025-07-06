@@ -286,7 +286,15 @@ export class CSharpTranspiler {
   /**
    * Map Lingual types to C# types
    */
-  private mapTypeToCSharp(typeName: string): string {
+  private mapTypeToCSharp(typeAnnotation: TypeAnnotation | string): string {
+    let typeName: string;
+    
+    if (typeof typeAnnotation === 'string') {
+      typeName = typeAnnotation;
+    } else {
+      typeName = typeAnnotation.typeName.name;
+    }
+    
     switch (typeName.toLowerCase()) {
       case 'string':
         return 'string';
@@ -555,9 +563,36 @@ export class CSharpTranspiler {
    * Transpile a call expression to C#
    */
   private transpileCallExpression(expr: CallExpression): string {
+    // Handle http.get/post/put/delete
+    if (expr.callee.type === 'MemberExpression') {
+      const member = expr.callee as MemberExpression;
+      if (member.object.type === 'Identifier' && member.object.name === 'http') {
+        const method = member.property.name.toLowerCase();
+        const urlArg = expr.arguments[0] ? this.transpileExpression(expr.arguments[0]) : '""';
+        // Use HttpClient for HTTP requests
+        switch (method) {
+          case 'get':
+            return `await new HttpClient().GetAsync(${urlArg})`;
+          case 'post':
+            return `await new HttpClient().PostAsync(${urlArg}, null)`;
+          case 'put':
+            return `await new HttpClient().PutAsync(${urlArg}, null)`;
+          case 'delete':
+            return `await new HttpClient().DeleteAsync(${urlArg})`;
+        }
+      }
+      // Handle response.json()
+      if (member.property.name === 'json') {
+        // Assume the object is a variable holding the response content as string
+        // In real code, you'd want to infer the type, but we'll use 'dynamic' for now
+        const responseVar = this.transpileExpression(member.object);
+        // If you know the type, replace 'dynamic' with the actual type
+        return `JsonConvert.DeserializeObject<dynamic>(${responseVar})`;
+      }
+    }
+    // Fallback to default
     const callee = this.transpileExpression(expr.callee);
     const args = expr.arguments.map(arg => this.transpileExpression(arg)).join(', ');
-    
     return `${callee}(${args})`;
   }
 
@@ -565,9 +600,14 @@ export class CSharpTranspiler {
    * Transpile a member expression to C#
    */
   private transpileMemberExpression(expr: MemberExpression): string {
+    // Special case: response.json (as a property, not a call)
+    if (expr.property.name === 'json') {
+      const responseVar = this.transpileExpression(expr.object);
+      return `JsonConvert.DeserializeObject<dynamic>(${responseVar})`;
+    }
+    // Fallback to default
     const object = this.transpileExpression(expr.object);
     const property = this.transpileIdentifier(expr.property);
-    
     return `${object}.${property}`;
   }
 
