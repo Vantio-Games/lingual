@@ -3,16 +3,25 @@ import { logger } from './utils/logger.js';
 import path from 'path';
 
 export interface LingualConfig {
-  target?: 'csharp' | 'javascript' | 'typescript';
+  target?: string;
   outputDir?: string;
   verbose?: boolean;
   debug?: boolean;
-  macros?: {
-    [key: string]: string | Function;
-  };
-  plugins?: string[];
   watch?: boolean;
   json?: boolean;
+  prettify?: {
+    indentSize?: number;
+    indentStyle?: 'space' | 'tab';
+    maxLineLength?: number;
+    semicolons?: boolean;
+    trailingCommas?: boolean;
+    bracketSpacing?: boolean;
+    arrowParens?: 'always' | 'avoid';
+    quoteStyle?: 'single' | 'double';
+    lineEnding?: 'lf' | 'crlf' | 'auto';
+    insertFinalNewline?: boolean;
+    trimTrailingWhitespace?: boolean;
+  };
 }
 
 export class ConfigManager {
@@ -84,8 +93,6 @@ export class ConfigManager {
       outputDir: './dist',
       verbose: false,
       debug: false,
-      macros: {},
-      plugins: [],
       watch: false,
       json: false
     };
@@ -128,24 +135,9 @@ export class ConfigManager {
   validate(): string[] {
     const errors: string[] = [];
 
-    // Validate target
-    if (this.config.target && !['csharp', 'javascript', 'typescript'].includes(this.config.target)) {
-      errors.push(`Invalid target: ${this.config.target}`);
-    }
-
     // Validate output directory
     if (this.config.outputDir && typeof this.config.outputDir !== 'string') {
       errors.push('Output directory must be a string');
-    }
-
-    // Validate macros
-    if (this.config.macros && typeof this.config.macros !== 'object') {
-      errors.push('Macros must be an object');
-    }
-
-    // Validate plugins
-    if (this.config.plugins && !Array.isArray(this.config.plugins)) {
-      errors.push('Plugins must be an array');
     }
 
     return errors;
@@ -175,11 +167,6 @@ export class ConfigManager {
       outputDir: './dist',
       verbose: false,
       debug: false,
-      macros: {
-        upper: 'text => text.toUpperCase()',
-        lower: 'text => text.toLowerCase()'
-      },
-      plugins: [],
       watch: false,
       json: false
     };

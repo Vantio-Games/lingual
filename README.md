@@ -152,52 +152,77 @@ createGetter(age, number);
 
 ```
 src/
-├── lexer/           # Token definitions
-├── parser/          # Grammar and parsing
-├── types/           # TypeScript type definitions
-├── transpilers/     # Code generators
-│   ├── csharp.ts   # C# transpiler
-│   ├── javascript.ts # JavaScript transpiler
-│   └── typescript.ts # TypeScript transpiler
-├── macros/          # Macro system
-├── utils/           # Utilities (logging, file helpers)
-└── cli.ts          # CLI entry point
+├── cli/
+│   ├── commands/           # CLI commands
+│   │   ├── build.ts       # Build command
+│   │   ├── transpile.ts   # Transpile command
+│   │   ├── prettify.ts    # Prettify command
+│   │   └── list-languages.ts # List languages command
+│   └── cli.ts             # Main CLI entry point
+├── languages/              # Target language implementations
+│   ├── types.ts           # Language interfaces
+│   ├── language-manager.ts # Manages all languages
+│   ├── csharp.ts          # C# language implementation
+│   ├── javascript.ts      # JavaScript language implementation
+│   └── typescript.ts      # TypeScript language implementation
+├── tokenizer/             # Tokenizer system
+│   ├── tokenizer.ts       # Main tokenizer
+│   └── types.ts           # Token types
+├── parser/                # Parser system
+│   └── parser.ts          # CST parser
+├── ast/                   # AST converter
+│   └── ast-converter.ts   # CST to AST converter
+├── standard-library/      # Standard library system
+│   └── standard-library.ts # Common functions
+├── middleware/            # Middleware system
+│   ├── middleware-manager.ts # Manages middleware
+│   ├── variable-renamer.ts   # Variable renaming
+│   ├── type-checker.ts       # Type checking
+│   └── hoister.ts            # Declaration hoisting
+├── types/                 # Type definitions
+│   └── index.ts           # Common types
+└── utils/                 # Utilities (logging, file helpers)
 ```
+
+## 🏗️ Architecture
+
+The project follows a modular architecture with clear separation of concerns:
+
+### Language System
+Each target language is implemented as a separate module in `src/languages/` that exports:
+- `name`: Unique identifier
+- `displayName`: Human-readable name  
+- `description`: Language description
+- `emoji`: Visual representation
+- `version`: Language support version
+- `middlewareDependencies`: Array of middleware names in order
+- `transpile()`: Function to convert AST to target language code
+
+### Middleware System
+Middleware in `src/middleware/` can transform the AST:
+- **Variable Renamer**: Renames variables to avoid conflicts
+- **Type Checker**: Performs type validation
+- **Hoister**: Moves declarations to the top of their scope
+
+Languages can specify which middleware they depend on and in what order.
+
+### Standard Library
+The standard library provides common functions that transpile to different languages:
+- `console.log`, `console.error`, `console.warn`
+- `http.get`, `http.post`
+- `Math.random`, `Math.floor`, `Math.ceil`
+- String and array operations
+
+### Processing Pipeline
+1. **Source Code** → Tokenizer → **Tokens**
+2. **Tokens** → Parser → **CST (Concrete Syntax Tree)**
+3. **CST** → AST Converter → **AST (Abstract Syntax Tree)**
+4. **AST** → Middleware Pipeline → **Processed AST**
+5. **Processed AST** → Language Transpiler → **Target Code**
+
+Each step is modular and can be extended or replaced independently.
 
 ## 💡 Examples
-
-### Fibonacci Example
-
-**Input** (`fibonacci.lingual`):
-```lingual
-function fibonacci(n: number): number {
-    if (n <= 1) {
-        return n;
-    } else {
-        return fibonacci(n - 1) + fibonacci(n - 2);
-    }
-}
-
-function main(): void {
-    let result: number = fibonacci(10);
-    console.log("Fibonacci(10) = " + result);
-}
-```
-
-**Generated C# Output:**
-```csharp
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace LingualGenerated
-{
-    public class Program
-    {
-        public static double fibonacci(double n)
-        {
-            if ((n <= 1))
-            {
                 return n;
             }
             else

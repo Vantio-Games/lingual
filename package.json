@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "description": "A CLI tool for transpiling a custom language to other programming languages",
     "type": "module",
-    "main": "dist/cli.js",
+    "main": "dist/index.js",
     "bin": {
         "lingual": "dist/cli.js"
     },

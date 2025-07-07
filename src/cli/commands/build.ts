@@ -1,14 +1,14 @@
 import { Command } from 'commander';
-import { BuildPipeline, BuildOptions } from '../../compiler/build.js';
 import { logger, LogLevel } from '../../utils/logger.js';
-import { CompilerOptions } from '../../types/index.js';
+import { CompilerOptions, CompilerContext } from '../../types/index.js';
 import { FileHelpers } from '../../utils/file-helpers.js';
+import { LanguageManager } from '../../languages/language-manager.js';
 import path from 'path';
 
 export interface BuildCommandOptions {
   input: string;
   output?: string;
-  target?: 'csharp' | 'javascript' | 'typescript';
+  targets?: string[];
   verbose?: boolean;
   debug?: boolean;
   watch?: boolean;
@@ -16,16 +16,10 @@ export interface BuildCommandOptions {
 }
 
 export class BuildCommand {
-  private pipeline: BuildPipeline;
+  private languageManager: LanguageManager;
 
   constructor() {
-    const compilerOptions: CompilerOptions = {
-      target: 'csharp',
-      outputDir: './dist',
-      verbose: false,
-      debug: false
-    };
-    this.pipeline = new BuildPipeline(compilerOptions);
+    this.languageManager = new LanguageManager();
   }
 
   /**
@@ -44,26 +38,23 @@ export class BuildCommand {
         logger.setLevel(LogLevel.DEBUG);
       }
 
-      // Prepare build options
-      const buildOptions: BuildOptions = {
-        inputFile: path.resolve(options.input),
-        outputDir: options.output ? path.resolve(options.output) : './dist',
-        target: options.target || 'csharp',
-        verbose: options.verbose,
-        debug: options.debug,
-        watch: options.watch,
-        json: options.json
-      };
+      // Determine targets to build
+      const targets = options.targets || ['csharp', 'javascript', 'typescript', 'gdscript', 'python'];
+      const outputDir = options.output ? path.resolve(options.output) : './out';
+      
+      logger.info(`Building ${options.input} → ${outputDir}`);
+      logger.info(`Targets: ${targets.join(', ')}`);
 
-      logger.info(`Building ${options.input} → ${buildOptions.outputDir}`);
+      // Read source file
+      const sourceCode = await FileHelpers.readFile(options.input);
+      const baseFileName = path.basename(options.input, path.extname(options.input));
 
-      // Execute build
-      if (options.watch) {
-        await this.pipeline.watch(buildOptions);
-      } else {
-        const result = await this.pipeline.build(buildOptions);
-        this.handleBuildResult(result);
+      // Build for each target
+      for (const target of targets) {
+        await this.buildForTarget(sourceCode, target, outputDir, baseFileName, options);
       }
+
+      logger.success(`Build completed successfully for ${targets.length} target(s)!`);
 
     } catch (error) {
       logger.error('Build command failed:', error);
@@ -72,33 +63,89 @@ export class BuildCommand {
   }
 
   /**
-   * Handle build results and display appropriate messages
+   * Build for a specific target
    */
-  private handleBuildResult(result: any): void {
-    if (result.success) {
-      logger.success(`Build completed successfully!`);
-      logger.info(`Generated files:`);
-      for (const file of result.outputFiles) {
-        logger.info(`  ${file}`);
+  private async buildForTarget(
+    sourceCode: string, 
+    target: string, 
+    outputDir: string, 
+    baseFileName: string, 
+    options: BuildCommandOptions
+  ): Promise<void> {
+    try {
+      logger.info(`Building for ${target}...`);
+
+      // Create compiler context
+      const context: CompilerContext = {
+        options: {
+          target,
+          verbose: options.verbose,
+          debug: options.debug
+        },
+        macros: new Map(),
+        errors: [],
+        warnings: []
+      };
+
+      // Transpile the code
+      const transpiledCode = await this.languageManager.transpile(
+        sourceCode, 
+        target, 
+        context
+      );
+
+      // Handle errors
+      if (context.errors.length > 0) {
+        logger.error(`Build failed for ${target} with ${context.errors.length} errors:`);
+        for (const error of context.errors) {
+          logger.error(`  ${error.message}`);
+        }
+        return;
       }
 
-      if (result.warnings.length > 0) {
-        logger.warn(`Build completed with ${result.warnings.length} warnings:`);
-        for (const warning of result.warnings) {
-          logger.warn(`  ${warning}`);
+      // Create target-specific output directory
+      const targetOutputDir = path.join(outputDir, target);
+      await FileHelpers.ensureDir(targetOutputDir);
+
+      // Write main source file
+      const outputFile = path.join(targetOutputDir, `${baseFileName}${this.getFileExtension(target)}`);
+      await FileHelpers.writeFile(outputFile, transpiledCode);
+
+      // Generate package files
+      const language = this.languageManager.getLanguage(target);
+      if (language) {
+        await language.generatePackageFiles(targetOutputDir, baseFileName);
+      }
+
+      // Handle warnings
+      if (context.warnings.length > 0) {
+        logger.warn(`Build completed for ${target} with ${context.warnings.length} warnings:`);
+        for (const warning of context.warnings) {
+          logger.warn(`  ${warning.message}`);
         }
       }
 
-      if (result.ast && process.env.LINGUAL_DEBUG) {
-        logger.debug('AST:', JSON.stringify(result.ast, null, 2));
-      }
-    } else {
-      logger.error(`Build failed with ${result.errors.length} errors:`);
-      for (const error of result.errors) {
-        logger.error(`  ${error}`);
-      }
-      process.exit(1);
+      logger.success(`✓ ${target}: ${outputFile}`);
+
+    } catch (error) {
+      logger.error(`Build failed for ${target}:`, error);
     }
+  }
+
+
+
+  /**
+   * Get file extension for target language
+   */
+  private getFileExtension(target: string): string {
+    const extensions: Record<string, string> = {
+      csharp: '.cs',
+      javascript: '.js',
+      typescript: '.ts',
+      gdscript: '.gd',
+      python: '.py'
+    };
+    return extensions[target] || '.cs';
   }
 
   /**
@@ -106,10 +153,10 @@ export class BuildCommand {
    */
   static createCommand(): Command {
     const command = new Command('build')
-      .description('Build and transpile source files')
+      .description('Build and transpile source files to multiple languages')
       .argument('<input>', 'Input file to build')
-      .option('-o, --output <dir>', 'Output directory', './dist')
-      .option('-t, --target <language>', 'Target language (csharp, javascript, typescript)', 'csharp')
+      .option('-o, --output <dir>', 'Output directory', './out')
+      .option('-t, --targets <languages>', 'Target languages (comma-separated: csharp,javascript,typescript,gdscript,python)', 'csharp,javascript,typescript,gdscript,python')
       .option('-v, --verbose', 'Enable verbose logging')
       .option('-d, --debug', 'Enable debug mode')
       .option('-w, --watch', 'Watch for file changes')
@@ -119,7 +166,7 @@ export class BuildCommand {
         await buildCommand.execute({
           input,
           output: options.output,
-          target: options.target,
+          targets: options.targets.split(',').map((t: string) => t.trim()),
           verbose: options.verbose,
           debug: options.debug,
           watch: options.watch,

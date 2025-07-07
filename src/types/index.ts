@@ -1,5 +1,4 @@
-// Core AST node types for the custom language
-import { TypeDefinition } from '../language/features/type.js';
+// Core types for the transpiler system
 
 export interface Position {
   line: number;
@@ -23,7 +22,7 @@ export interface Identifier extends BaseNode {
 
 export interface Literal extends BaseNode {
   type: 'Literal';
-  value: string | number | boolean;
+  value: string | number | boolean | null;
 }
 
 export interface Parameter extends BaseNode {
@@ -71,11 +70,36 @@ export interface IfStatement extends BaseNode {
   elseStatement?: Statement;
 }
 
+export interface WhileStatement extends BaseNode {
+  type: 'WhileStatement';
+  condition: Expression;
+  body: Statement;
+}
+
+export interface ForStatement extends BaseNode {
+  type: 'ForStatement';
+  initializer?: VariableDeclaration | Expression;
+  condition?: Expression;
+  increment?: Expression;
+  body: Statement;
+}
+
+export interface BlockStatement extends BaseNode {
+  type: 'BlockStatement';
+  body: Statement[];
+}
+
 export interface BinaryExpression extends BaseNode {
   type: 'BinaryExpression';
   operator: string;
   left: Expression;
   right: Expression;
+}
+
+export interface UnaryExpression extends BaseNode {
+  type: 'UnaryExpression';
+  operator: string;
+  argument: Expression;
 }
 
 export interface CallExpression extends BaseNode {
@@ -88,29 +112,16 @@ export interface MemberExpression extends BaseNode {
   type: 'MemberExpression';
   object: Expression;
   property: Identifier;
+  computed: boolean;
 }
 
 export type Expression = 
   | Identifier 
   | Literal 
   | BinaryExpression 
+  | UnaryExpression
   | CallExpression 
-  | MemberExpression
-  | MacroCall;
-
-export interface ApiDefinition extends BaseNode {
-  type: 'ApiDefinition';
-  name: Identifier;
-  // ...other properties as needed
-}
-
-export interface ModuleDefinition extends BaseNode {
-  type: 'ModuleDefinition';
-  name: Identifier;
-  // ...other properties as needed
-}
-
-export { TypeDefinition } from '../language/features/type.js';
+  | MemberExpression;
 
 export type Statement = 
   | FunctionDeclaration 
@@ -118,33 +129,18 @@ export type Statement =
   | ExpressionStatement 
   | ReturnStatement 
   | IfStatement
-  | MacroDefinition
-  | MacroCall
-  | ApiDefinition
-  | TypeDefinition
-  | ModuleDefinition;
+  | WhileStatement
+  | ForStatement
+  | BlockStatement;
 
 export interface Program extends BaseNode {
   type: 'Program';
   body: Statement[];
 }
 
-export interface MacroDefinition extends BaseNode {
-  type: 'MacroDefinition';
-  name: Identifier;
-  parameters: Parameter[];
-  body: Statement[];
-}
-
-export interface MacroCall extends BaseNode {
-  type: 'MacroCall';
-  name: Identifier;
-  arguments: Expression[];
-}
-
 // Compiler context and options
 export interface CompilerOptions {
-  target: 'csharp' | 'javascript' | 'typescript';
+  target: string;
   outputDir?: string;
   verbose?: boolean;
   debug?: boolean;
@@ -152,7 +148,7 @@ export interface CompilerOptions {
 
 export interface CompilerContext {
   options: CompilerOptions;
-  macros: Map<string, MacroDefinition>;
+  macros: Map<string, any>;
   errors: CompilationError[];
   warnings: CompilationWarning[];
 }
